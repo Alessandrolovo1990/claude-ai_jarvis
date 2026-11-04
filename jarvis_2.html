@@ -3,6 +3,11 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Claude">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#000810">
 <title>CLAUDE — AI Assistant</title>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Share+Tech+Mono&display=swap');
@@ -263,6 +268,15 @@ html, body {
   opacity: 0;
   transition: opacity 0.2s;
 }
+
+/* ── mobile ── */
+html { -webkit-text-size-adjust: 100%; }
+@media (max-width: 700px) {
+  #txt { font-size: 16px; }
+  #chatlog { height: 38vh; }
+  .tb-left { font-size: 17px; letter-spacing: 6px; }
+  .tb-right { font-size: 8px; }
+}
 </style>
 </head>
 <body>
@@ -274,10 +288,10 @@ html, body {
 <div id="topbar">
   <div>
     <div class="tb-left">CLAUDE</div>
-    <div class="tb-sub">ANTHROPIC AI — NEURAL INTERFACE — v4.6</div>
+    <div class="tb-sub">ASSISTENTE PERSONALE · NOTION · CALENDARIO</div>
   </div>
   <div class="tb-right">
-    <div><span class="dot-live"></span>NEURAL NET ACTIVE</div>
+    <div><span class="dot-live"></span>NEURAL NET ACTIVE · <a href="#" onclick="window._cfg=null;try{localStorage.removeItem('claude_cfg')}catch(e){};showSetupScreen();return false;" style="color:rgba(0,212,255,0.5);pointer-events:all;text-decoration:none">⚙</a></div>
     <div id="clock">--:--:--</div>
     <div id="nodecount">NODES: 0</div>
   </div>
@@ -289,7 +303,7 @@ html, body {
     <div id="chatlog">
       <div class="msg msg-jarvis">
         <div class="msg-lbl">◈ CLAUDE</div>
-        <div class="msg-body">Rete neurale sincronizzata. Sistemi online. Sono Claude. Puoi parlarmi: di' "Ehi Claude" per attivarmi, oppure scrivi qui sotto.</div>
+        <div class="msg-body">Sistemi online. Sono Claude: posso consultare il tuo Notion e il tuo calendario. Di' "Ehi Claude" seguito dalla domanda, oppure scrivi qui sotto.</div>
       </div>
     </div>
     <div class="panel-divider"></div>
@@ -655,7 +669,10 @@ function setState(s) {
   else strip.textContent = '// ANTHROPIC · CLAUDE AI · NEURAL INTERFACE ONLINE · DI\' "EHI CLAUDE" PER ATTIVARMI //';
 }
 
+const chatHistory = [];
+
 async function send() {
+  if (!window._cfg) { showSetupScreen(); return; }
   const inp = document.getElementById('txt');
   const q = inp.value.trim();
   if (!q) return;
@@ -672,31 +689,46 @@ async function send() {
   rebuildConnections();
   document.getElementById('nodecount').textContent = `NODES: ${nodes.length}`;
 
-  try {
-    const payload = {
-      model: 'claude-sonnet-4-6',
-      max_tokens: 1024,
-      system: `Sei Claude, l'assistente AI di Anthropic. Rispondi sempre in italiano, con tono preciso, professionale e leggermente formale. Sei esperto in tecnologia, scienza, architettura, business, analisi. Risposte concise max 180 parole. Inizia spesso con frasi tipo "Analisi completata:", "Certamente," o "Elaborazione dati:". Quando ti chiamano con "Ehi Claude" rispondi prontamente.`,
-      messages: [{ role: 'user', content: q }]
-    };
+  chatHistory.push({ role: 'user', content: q });
+  if (chatHistory.length > 20) chatHistory.splice(0, chatHistory.length - 20);
 
-    const res = await fetch('https://api.anthropic.com/v1/messages', {
+  try {
+    const res = await fetch(window._cfg.url, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'x-api-key': window._apiKey,
-        'anthropic-version': '2023-06-01'
+        'Authorization': 'Bearer ' + window._cfg.token
       },
-      body: JSON.stringify(payload)
+      body: JSON.stringify({ messages: chatHistory })
     });
-    const data = await res.json();
-    const reply = data.content?.[0]?.text || 'Segnale non rilevato.';
+    let data = {};
+    try { data = await res.json(); } catch(e) {}
+
+    if (!res.ok) {
+      chatHistory.pop();
+      removeTyping();
+      if (res.status === 401) {
+        try { localStorage.removeItem('claude_cfg'); } catch(e) {}
+        window._cfg = null;
+        addMsg('jarvis', 'Codice di accesso rifiutato. Inseriscilo di nuovo.');
+        showSetupScreen();
+      } else {
+        addMsg('jarvis', 'Errore: ' + (data.error || ('HTTP ' + res.status)));
+      }
+      setState('idle');
+      return;
+    }
+
+    const reply = data.reply || 'Nessuna risposta ricevuta.';
+    chatHistory.push({ role: 'assistant', content: reply });
     removeTyping();
-    addMsg('jarvis', reply);
+    const src = (data.tools && data.tools.length) ? `<div style="margin-top:4px;font-size:9px;letter-spacing:2px;color:rgba(0,212,255,0.4)">◇ CONSULTATO: ${data.tools.join(' · ').toUpperCase()}</div>` : '';
+    addMsg('jarvis', reply.replace(/</g,'&lt;') + src);
     speak(reply);
   } catch(e) {
+    chatHistory.pop();
     removeTyping();
-    addMsg('jarvis', 'Errore di connessione API. Verifica la chiave nelle impostazioni.');
+    addMsg('jarvis', 'Errore di rete: ' + e.message);
   }
 
   setState('idle');
@@ -708,23 +740,26 @@ document.getElementById('txt').addEventListener('keydown', e => { if(e.key==='En
 function speak(text) {
   if (!window.speechSynthesis) return;
   speechSynthesis.cancel();
+  if (wakeRecog && wakeActive) { try { wakeRecog.stop(); } catch(e){} wakeActive = false; }
   const u = new SpeechSynthesisUtterance(text);
-  u.lang = 'it-IT'; u.rate = 0.95; u.pitch = 0.82;
+  u.lang = 'it-IT'; u.rate = 0.98; u.pitch = 0.9;
   const v = speechSynthesis.getVoices();
-  const itV = v.find(x=>x.lang.startsWith('it') && /male/i.test(x.name)) || v.find(x=>x.lang.startsWith('it'));
+  const itV = v.find(x=>x.lang.startsWith('it') && /male|luca|cosimo|diego/i.test(x.name)) || v.find(x=>x.lang.startsWith('it'));
   if (itV) u.voice = itV;
+  u.onend = u.onerror = () => setTimeout(startWakeWord, 600);
   speechSynthesis.speak(u);
 }
 if (window.speechSynthesis) speechSynthesis.onvoiceschanged = () => speechSynthesis.getVoices();
 
-// ── PASSWORD + API KEY OFFUSCATA ──
-// Key codificata in base64 — non leggibile direttamente
-const _k = atob('c2stYW50LWFwaTAzLVQ3WmFRZFViV2ZEb1E3NTVpV3U4aEl6VC1SUTNDRU5YMGoycG1OWWNaMnMtU1NxWHF0QmpCUlIwQ3BBd3VJTlk2dHI0bHhFOTZZandDSkpVb0NmX1Etb1FpZXlHQUE=');
-window._apiKey = null;
+// ── CONFIGURAZIONE — indirizzo del Worker + codice di accesso (salvati solo nel browser) ──
+window._cfg = null;
+try { window._cfg = JSON.parse(localStorage.getItem('claude_cfg') || 'null'); } catch(e) {}
 
-function showKeyScreen() {
+function showSetupScreen() {
+  if (document.getElementById('setupOverlay')) return;
+  const prev = window._cfg || {};
   const overlay = document.createElement('div');
-  overlay.id = 'keyOverlay';
+  overlay.id = 'setupOverlay';
   overlay.style.cssText = `
     position:fixed;inset:0;z-index:999;
     background:rgba(0,4,12,0.97);
@@ -732,101 +767,105 @@ function showKeyScreen() {
     align-items:center;justify-content:center;gap:20px;
     font-family:'Share Tech Mono',monospace;
   `;
+  const field = 'background:rgba(0,10,30,0.9);border:1px solid rgba(0,212,255,0.3);color:#00d4ff;font-family:\'Share Tech Mono\',monospace;font-size:13px;padding:14px;outline:none;border-radius:3px;letter-spacing:1px;';
   overlay.innerHTML = `
     <div style="font-family:'Orbitron',sans-serif;font-size:28px;font-weight:900;letter-spacing:10px;color:#00d4ff;text-shadow:0 0 20px #00d4ff">CLAUDE</div>
-    <div style="font-size:10px;letter-spacing:4px;color:rgba(0,212,255,0.5)">ANTHROPIC AI — NEURAL INTERFACE</div>
-    <div style="width:min(380px,90vw);background:rgba(0,20,50,0.8);border:1px solid rgba(0,212,255,0.25);border-radius:6px;padding:28px;display:flex;flex-direction:column;gap:14px;margin-top:10px;">
-      <div style="font-size:9px;letter-spacing:3px;color:rgba(0,212,255,0.6)">◈ ACCESSO RISERVATO — INSERISCI PASSWORD</div>
-      <input id="pwdInput" type="password" placeholder="••••••••••" style="
-        background:rgba(0,10,30,0.9);border:1px solid rgba(0,212,255,0.3);
-        color:#00d4ff;font-family:'Share Tech Mono',monospace;font-size:16px;
-        padding:14px;outline:none;border-radius:3px;letter-spacing:4px;
-        text-align:center;
-      "/>
-      <div id="pwdError" style="font-size:9px;color:#ff3030;letter-spacing:2px;text-align:center;min-height:14px;"></div>
-      <button onclick="checkPassword()" style="
+    <div style="font-size:10px;letter-spacing:4px;color:rgba(0,212,255,0.5)">ASSISTENTE PERSONALE — NOTION · CALENDARIO</div>
+    <div style="width:min(440px,90vw);background:rgba(0,20,50,0.8);border:1px solid rgba(0,212,255,0.25);border-radius:6px;padding:28px;display:flex;flex-direction:column;gap:12px;margin-top:10px;">
+      <div style="font-size:9px;letter-spacing:3px;color:rgba(0,212,255,0.6)">◈ INDIRIZZO DEL WORKER</div>
+      <input id="cfgUrl" type="text" placeholder="https://claude-assistant.xxxx.workers.dev" autocomplete="off" value="${prev.url || ''}" style="${field}"/>
+      <div style="font-size:9px;letter-spacing:3px;color:rgba(0,212,255,0.6);margin-top:6px">◈ CODICE DI ACCESSO</div>
+      <input id="cfgToken" type="password" placeholder="il tuo APP_TOKEN" autocomplete="off" style="${field}"/>
+      <div id="cfgError" style="font-size:9px;color:#ff3030;letter-spacing:2px;min-height:14px;"></div>
+      <button onclick="saveSetup()" style="
         background:transparent;border:1px solid rgba(0,212,255,0.5);
         color:#00d4ff;font-family:'Orbitron',sans-serif;font-size:10px;
         letter-spacing:3px;padding:12px;cursor:pointer;border-radius:3px;
-      ">ACCEDI AL SISTEMA</button>
+      ">AVVIA SISTEMA</button>
+      <div style="font-size:9px;color:rgba(0,212,255,0.35);letter-spacing:1px;line-height:1.7">
+        Questi dati restano solo in questo browser e vengono chiesti una volta sola.<br>
+        Nessuna chiave è scritta nel codice del sito.
+      </div>
     </div>
   `;
   document.body.appendChild(overlay);
-  setTimeout(() => document.getElementById('pwdInput').focus(), 100);
-  document.getElementById('pwdInput').addEventListener('keydown', e => {
-    if (e.key === 'Enter') checkPassword();
-  });
+  setTimeout(() => document.getElementById(prev.url ? 'cfgToken' : 'cfgUrl').focus(), 100);
+  ['cfgUrl','cfgToken'].forEach(id => document.getElementById(id).addEventListener('keydown', e => { if (e.key === 'Enter') saveSetup(); }));
 }
 
-function checkPassword() {
-  const pwd = document.getElementById('pwdInput').value;
-  if (pwd === 'Claude__1990') {
-    window._apiKey = _k;
-    const overlay = document.getElementById('keyOverlay');
-    overlay.style.transition = 'opacity 0.6s';
-    overlay.style.opacity = '0';
-    setTimeout(() => overlay.remove(), 600);
-  } else {
-    document.getElementById('pwdError').textContent = '⚠ ACCESSO NEGATO — PASSWORD ERRATA';
-    document.getElementById('pwdInput').value = '';
-    document.getElementById('pwdInput').style.borderColor = '#ff3030';
-    setTimeout(() => {
-      document.getElementById('pwdError').textContent = '';
-      document.getElementById('pwdInput').style.borderColor = 'rgba(0,212,255,0.3)';
-    }, 2000);
-  }
+function saveSetup() {
+  const url = document.getElementById('cfgUrl').value.trim().replace(/\/+$/, '');
+  const token = document.getElementById('cfgToken').value.trim();
+  const err = document.getElementById('cfgError');
+  if (!/^https:\/\/[^\s]+$/.test(url)) { err.textContent = '⚠ INDIRIZZO NON VALIDO (DEVE INIZIARE CON https://)'; return; }
+  if (token.length < 8) { err.textContent = '⚠ CODICE TROPPO CORTO'; return; }
+  window._cfg = { url, token };
+  try { localStorage.setItem('claude_cfg', JSON.stringify(window._cfg)); } catch(e) {}
+  const overlay = document.getElementById('setupOverlay');
+  overlay.style.transition = 'opacity 0.6s';
+  overlay.style.opacity = '0';
+  setTimeout(() => overlay.remove(), 600);
+  setTimeout(startWakeWord, 1500);
 }
 
-showKeyScreen();
+if (!window._cfg) showSetupScreen();
 
 let wakeRecog = null;
 let wakeActive = false;
+const IS_IOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
 
 function startWakeWord() {
+  if (IS_IOS) return; // su iPhone l'ascolto continuo non è affidabile: si usa il pulsante MIC
+  if (!window._cfg || wakeActive || isListening) return;
   if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) return;
-  if (wakeActive) return;
+  if (window.speechSynthesis && speechSynthesis.speaking) { setTimeout(startWakeWord, 1200); return; }
   const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
   wakeRecog = new SR();
   wakeRecog.lang = 'it-IT';
   wakeRecog.continuous = true;
-  wakeRecog.interimResults = true;
+  wakeRecog.interimResults = false;
 
   wakeRecog.onstart = () => { wakeActive = true; };
 
   wakeRecog.onresult = e => {
     for (let i = e.resultIndex; i < e.results.length; i++) {
-      const transcript = e.results[i][0].transcript.toLowerCase().trim();
-      // Riconosce varianti: "ehi claude", "hey claude", "ei claude", "ehi clod", ecc.
-      if (/\b(ehi|hey|ei|hei)\s*(claude|clod|klod|claud)\b/.test(transcript)) {
-        // Se già in ascolto attivo, ignora
-        if (isListening) return;
-        // Feedback visivo
-        addMsg('jarvis', 'Sì? Sono in ascolto. Come posso aiutarti?');
-        speak('Sì? Sono in ascolto.');
-        // Avvia ascolto comando dopo brevissima pausa
-        setTimeout(() => {
-          if (!isListening) startMic();
-        }, 600);
+      if (!e.results[i].isFinal) continue;
+      const transcript = e.results[i][0].transcript.trim();
+      // "ehi claude", "hey claude", "ei claude", "ehi cloud"...
+      const m = /\b(?:ehi|hey|ei|hei)\s*,?\s*(?:claude|claud|clod|klod|cloud)\b[\s,!.:?-]*(.*)$/i.exec(transcript);
+      if (!m || isListening) continue;
+      const command = (m[1] || '').trim();
+      try { wakeRecog.stop(); } catch(e) {}
+      wakeActive = false;
+      if (command.length > 3) {
+        // comando già nella stessa frase: "ehi Claude, che impegni ho domani?"
+        document.getElementById('txt').value = command;
+        send();
+      } else {
+        addMsg('jarvis', 'Sì? Dimmi.');
+        speak('Sì? Dimmi.');
+        setTimeout(() => { if (!isListening) startMic(); }, 1100);
       }
+      return;
     }
   };
 
   wakeRecog.onend = () => {
     wakeActive = false;
-    // Riavvia automaticamente se non in ascolto attivo
     if (!isListening) setTimeout(startWakeWord, 800);
   };
 
-  wakeRecog.onerror = () => {
+  wakeRecog.onerror = ev => {
     wakeActive = false;
+    if (ev.error === 'not-allowed' || ev.error === 'service-not-allowed') return; // permesso negato: non insistere
     setTimeout(startWakeWord, 2000);
   };
 
   try { wakeRecog.start(); } catch(e) {}
 }
 
-// Avvia wake word dopo 1.5s (tempo per caricare i permessi)
-setTimeout(startWakeWord, 1500);
+// Avvia il wake word subito solo se la configurazione c'è già (altrimenti dopo il setup)
+if (window._cfg) setTimeout(startWakeWord, 1500);
 
 // ── Voice recognition ──
 let recog = null, isListening = false;
@@ -870,6 +909,10 @@ function stopMic() {
   setState('idle');
   // Riavvia wake word
   setTimeout(startWakeWord, 1000);
+}
+// Suggerimento specifico per iPhone
+if (IS_IOS) {
+  setTimeout(() => addMsg('jarvis', 'Su iPhone tocca MIC per parlare (oppure usa il microfono della tastiera). L\'ascolto automatico "Ehi Claude" funziona solo sul PC.'), 600);
 }
 </script>
 </body>
