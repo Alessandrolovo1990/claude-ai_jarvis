@@ -894,9 +894,19 @@ function toggleMic() {
   isListening ? stopMic() : startMic();
 }
 
+function micFallback(why) {
+  const tip = IS_IOS
+    ? 'Il microfono del pulsante non parte (' + why + '). Tocca la casella di testo e usa il microfono 🎙 della tastiera dell\'iPhone per dettare, poi premi INVIA. Oppure apri la pagina da Safari e riprova.'
+    : 'Errore microfono: ' + why + '. Controlla il permesso del microfono nel browser.';
+  addMsg('jarvis', tip);
+  if (IS_IOS) { try { document.getElementById('txt').focus(); } catch(e) {} }
+}
+
 function startMic() {
   // Ferma il wake word listener durante l'ascolto attivo
   if (wakeRecog && wakeActive) { try { wakeRecog.stop(); } catch(e){} wakeActive = false; }
+  // Libera l'audio: la voce dell'assistente non deve occupare il microfono (causa tipica di "aborted" su iPhone)
+  if (window.speechSynthesis) { try { speechSynthesis.cancel(); } catch(e){} }
   const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
   recog = new SR();
   recog.lang = 'it-IT'; recog.continuous = false; recog.interimResults = false;
@@ -912,9 +922,15 @@ function startMic() {
     stopMic();
     setTimeout(send, 280);
   };
-  recog.onerror = e => { stopMic(); addMsg('jarvis', `Errore microfono: ${e.error}`); };
+  recog.onerror = e => {
+    stopMic();
+    if (e.error === 'no-speech') { addMsg('jarvis', 'Non ho sentito nulla. Tocca MIC e riprova.'); return; }
+    if (e.error === 'aborted' && !IS_IOS) return; // interruzione normale su PC
+    micFallback(e.error);
+  };
   recog.onend = () => { if(isListening) stopMic(); };
-  recog.start();
+  // piccola pausa: su iPhone l'audio ha bisogno di un attimo per liberarsi dopo la voce
+  setTimeout(() => { try { recog.start(); } catch(err) { micFallback(err.message || 'start'); } }, IS_IOS ? 350 : 0);
 }
 
 function stopMic() {
