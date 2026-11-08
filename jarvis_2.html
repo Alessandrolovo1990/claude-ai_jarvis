@@ -740,6 +740,19 @@ async function send() {
 document.getElementById('txt').addEventListener('keydown', e => { if(e.key==='Enter') send(); });
 
 // ── TTS ──
+// iOS/Safari: la sintesi vocale parte solo se "sbloccata" da un tocco dell'utente
+let speechUnlocked = false;
+function unlockSpeech() {
+  if (speechUnlocked || !window.speechSynthesis) return;
+  speechUnlocked = true;
+  try {
+    const u = new SpeechSynthesisUtterance(' ');
+    u.volume = 0; u.lang = 'it-IT';
+    speechSynthesis.speak(u);
+  } catch(e) {}
+}
+['touchend', 'click', 'keydown'].forEach(ev => document.addEventListener(ev, unlockSpeech, { once: false, passive: true }));
+
 function speak(text) {
   if (!window.speechSynthesis) return;
   speechSynthesis.cancel();
