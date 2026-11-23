@@ -12,6 +12,7 @@
 <link rel="manifest" href="manifest-v3.webmanifest">
 <link rel="apple-touch-icon" href="icon-180.png">
 <link rel="icon" href="icon-192.png">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js" defer></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
@@ -147,6 +148,46 @@ header{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-betw
 .pin button{width:100%;height:50px;border-radius:14px;border:none;background:var(--accent);color:#042F2E;font-weight:600;font-size:15px;cursor:pointer}
 .pin .perr{color:#FCA5A5;font-size:13px;min-height:18px}
 
+/* Dashboard di efficienza */
+.ov-navy{background:rgba(10,20,40,.97)}
+.dtoday{margin-left:auto;display:flex;flex-direction:column;align-items:flex-end;gap:4px;text-align:right;font-size:12px;color:var(--muted)}
+.dtoday strong{font-family:'Space Grotesk';font-size:18px;color:var(--text)}
+.dtoday .hbtn{margin-top:4px}
+.dcard2{background:#111F3A;border:1px solid #22345A;border-radius:18px;padding:20px;display:flex;flex-direction:column;gap:10px;min-width:0}
+.dcard2 h2{margin:0;font-size:16px;letter-spacing:.5px}
+.dcard2 .sub{margin:0;color:#9FB0CC;font-size:13px;line-height:1.5}
+.nota-box{border-color:#2DD4BF;background:linear-gradient(0deg,rgba(19,78,74,.25),rgba(19,78,74,.25)),#111F3A}
+.nota-box h2{color:var(--accent);font-size:13px;letter-spacing:2px}
+.nota-box p{margin:0;font-size:15px;line-height:1.6}
+.mstrip{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px}
+.mpill{background:#111F3A;border:1px solid #22345A;border-radius:14px;padding:12px 14px;display:flex;flex-direction:column;gap:2px}
+.mpill.cur{border-color:var(--accent);background:rgba(19,78,74,.3)}
+.mpill span{font-size:12px;color:#9FB0CC}
+.mpill b{font-family:'Space Grotesk';font-size:22px}
+.mpill small{font-size:12px;color:#9FB0CC}
+.dash-2col{display:grid;grid-template-columns:repeat(auto-fit,minmax(420px,1fr));gap:16px}
+.chart-box{position:relative;height:300px}
+.tscroll{overflow-x:auto}
+.dtab{width:100%;border-collapse:collapse;font-size:14px}
+.dtab th{text-align:left;font-weight:600;color:#9FB0CC;font-size:12px;letter-spacing:.5px;padding:8px 10px;border-bottom:1px solid #22345A;white-space:nowrap}
+.dtab td{padding:10px;border-bottom:1px solid #1A2B4C;vertical-align:middle}
+.dtab .num{text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums}
+.dtab .adot{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:8px;vertical-align:middle}
+.pbar{position:relative;height:10px;background:#1A2B4C;border-radius:5px;min-width:120px}
+.pbar i{position:absolute;left:0;top:0;bottom:0;border-radius:5px}
+.pbar .pace{position:absolute;top:-4px;bottom:-4px;width:2px;background:#E2E8F0;opacity:.7}
+.days{display:inline-block;padding:3px 9px;border-radius:999px;background:rgba(245,158,11,.15);color:#FDE68A;font-size:12px}
+.dtab a{color:var(--text);text-decoration:none}
+.dtab a:hover{color:var(--accent)}
+.dstatus{padding:12px 14px;border-radius:12px;border:1px solid #7F1D1D;background:rgba(127,29,29,.25);color:#FCA5A5;font-size:13px;line-height:1.5}
+.dfoot{color:#7F90AE;font-size:12px;margin:0}
+.mitem{display:flex;flex-direction:column;gap:2px;padding:9px 0;border-bottom:1px solid var(--line);font-size:13px}
+.mitem:last-child{border-bottom:none}
+.mitem b{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.mitem span{color:var(--muted);font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.mitem.unread b::before{content:'';display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--accent);margin-right:6px;vertical-align:middle}
+@media (max-width:820px){ .dash-2col{grid-template-columns:1fr} .dtoday{align-items:flex-start;text-align:left;margin-left:0} .ov-h{flex-wrap:wrap} }
+
 /* Impostazioni voce */
 .vlist{display:flex;flex-direction:column;gap:8px;max-height:46vh;overflow-y:auto}
 .vitem{display:flex;align-items:center;gap:12px;padding:12px 14px;border-radius:12px;border:1px solid var(--line);background:#0B1220;cursor:pointer}
@@ -212,14 +253,15 @@ header{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-betw
     <!-- Colonna sinistra -->
     <div class="col">
       <section class="card" aria-labelledby="hDash">
-        <div class="card-h"><h2 id="hDash">REDDITIVITÀ</h2><span id="dashPeriod">—</span></div>
+        <div class="card-h"><h2 id="hDash">EFFICIENZA</h2><span id="dashPeriod">caricamento…</span></div>
+        <div class="bar" title="Avanzamento del mese"><i id="dashMonthBar" style="width:0;background:#64748B"></i></div>
+        <p class="muted" id="dashMonthTxt"></p>
         <div class="rows" id="dashRows"></div>
-        <p class="muted" id="dashNote"></p>
-        <button class="linkbtn" type="button" data-open="dashboard">Apri dashboard completa →</button>
+        <button class="linkbtn" type="button" data-open="dashboard">Apri dashboard di efficienza →</button>
       </section>
       <section class="card" aria-labelledby="hMail">
-        <div class="card-h"><h2 id="hMail">EMAIL</h2><span>a.l.realestateinvest</span></div>
-        <div class="soon">Lettura, ricerca e bozze delle email arrivano nella <b>fase 3</b>.</div>
+        <div class="card-h"><h2 id="hMail">EMAIL</h2><span id="mailCount">a.l.realestateinvest</span></div>
+        <div id="mailBox"><div class="soon">Caricamento…</div></div>
       </section>
     </div>
 
@@ -265,7 +307,8 @@ header{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-betw
       </section>
       <section class="card" aria-labelledby="hNotion">
         <div class="card-h"><h2 id="hNotion">NOTION</h2><span id="monthLbl">—</span></div>
-        <div class="soon">Lettura, aggiunta e spostamento delle note per area (A.L. Real Estate, KDP, Casa Pojana, Casa, Corsi &amp; AI) arrivano nella <b>fase 2</b>.</div>
+        <div id="notesBox"><div class="soon">Caricamento…</div></div>
+        <p class="muted">Prova: «aggiungi una nota: chiamare il geometra lunedì» oppure «quali note di Casa Pojana sono ancora aperte?»</p>
       </section>
     </div>
   </div>
@@ -285,18 +328,56 @@ header{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-betw
 </div>
 
 <!-- ============ VISTA DASHBOARD ============ -->
-<div class="ov hidden" id="ovDash" role="dialog" aria-modal="true" aria-labelledby="ovDashT">
+<div class="ov ov-navy hidden" id="ovDash" role="dialog" aria-modal="true" aria-labelledby="ovDashT">
   <div class="ov-in">
     <div class="ov-h">
-      <div><h1 id="ovDashT">DASHBOARD REDDITIVITÀ</h1><p id="ovDashSub">—</p></div>
+      <div>
+        <h1 id="ovDashT">DASHBOARD DI EFFICIENZA</h1>
+        <p>Task completate per macro area — da Notion «01_Personal work list»</p>
+      </div>
+      <div class="dtoday">
+        <strong id="ovDashDate">—</strong>
+        <span id="ovDashDay">—</span>
+        <button class="hbtn" type="button" id="dashRefresh">Aggiorna da Notion</button>
+      </div>
       <button class="xbtn" type="button" data-close aria-label="Chiudi"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
     </div>
-    <div class="big"><b id="ovDashAvg">—</b><span class="muted">media delle aree</span></div>
-    <div class="dash-grid">
-      <section class="card"><div class="card-h"><h2>TUTTE LE AREE</h2></div><div class="rows" id="ovDashBars"></div></section>
-      <section class="card"><div class="card-h"><h2 style="color:var(--ok)">AREE MIGLIORI</h2></div><div class="rows" id="ovDashBest"></div></section>
-      <section class="card"><div class="card-h"><h2 style="color:var(--todo)">DA MIGLIORARE</h2></div><div class="rows" id="ovDashWorst"></div><p class="muted" id="ovDashNote"></p></section>
+
+    <div class="dstatus hidden" id="dashStatus" role="status"></div>
+
+    <section class="dcard2 nota-box">
+      <h2>NOTA DELLA SETTIMANA</h2>
+      <p id="ovDashNota">—</p>
+    </section>
+
+    <div class="mstrip" id="ovMonthStrip"></div>
+
+    <section class="dcard2">
+      <h2 id="ovCurTitle">Mese in corso — dettaglio per area</h2>
+      <p class="sub" id="ovCurSub"></p>
+      <div class="tscroll"><table class="dtab" id="ovCurTable"></table></div>
+    </section>
+
+    <div class="dash-2col">
+      <section class="dcard2">
+        <h2>% task completate per area, mese per mese</h2>
+        <p class="sub">Da Settembre 2026 le task non fatte restano in lista, quindi la percentuale è reale. Giugno–Agosto sono esclusi: allora le task non fatte venivano cancellate.</p>
+        <div class="chart-box"><canvas id="chartPct" aria-label="Percentuale di completamento per area e mese" role="img"></canvas></div>
+      </section>
+      <section class="dcard2">
+        <h2>Volume task completate per area (storico)</h2>
+        <p class="sub">Numero di task chiuse per area in ogni mese: dove hai messo davvero il lavoro, a prescindere dalla %.</p>
+        <div class="chart-box"><canvas id="chartVol" aria-label="Task completate per area e mese" role="img"></canvas></div>
+      </section>
     </div>
+
+    <section class="dcard2">
+      <h2>Note aperte da più tempo</h2>
+      <p class="sub">Le task non ancora fatte del mese in corso, ordinate per data della nota. Toccane una per aprirla su Notion.</p>
+      <div class="tscroll"><table class="dtab" id="ovStaleTable"></table></div>
+    </section>
+
+    <p class="dfoot" id="ovDashFoot"></p>
   </div>
 </div>
 
@@ -386,6 +467,8 @@ async function start(){
   renderHistory();
   loadDashboard();
   loadFlow();
+  loadMail();
+  loadNotes();
   try { await api('/verify'); setConn(true); } catch(e) { if (token) setConn(false); }
 }
 
@@ -403,44 +486,193 @@ function tickClock(){
 tickClock(); setInterval(tickClock, 30000);
 
 // =====================================================================
-//  DASHBOARD
+//  DASHBOARD DI EFFICIENZA (live da Notion)
 // =====================================================================
 function colorFor(p){ return p >= 40 ? 'var(--ok)' : p > 0 ? 'var(--accent)' : 'var(--todo)'; }
+const pctOf = (s) => s && s.t ? Math.round(s.c / s.t * 100) : null;
+let chartPct = null, chartVol = null, dashLoading = false;
 
-async function loadDashboard(){
-  try { dashData = await api('/dashboard'); renderDashboard(); } catch(e) {}
+async function loadDashboard(force){
+  if (dashLoading) return;
+  dashLoading = true;
+  if (force) { $('dashRefresh').disabled = true; $('dashRefresh').textContent = 'Aggiorno…'; }
+  try {
+    dashData = await api('/dashboard' + (force ? '?refresh=1' : ''));
+    $('dashStatus').classList.add('hidden');
+    renderDashboard();
+  } catch(e) {
+    $('dashPeriod').textContent = 'non disponibile';
+    $('dashRows').innerHTML = '';
+    $('dashRows').appendChild(el('div', 'soon', 'Non riesco a leggere Notion: ' + e.message));
+    const st = $('dashStatus'); st.textContent = 'Non riesco a leggere Notion: ' + e.message; st.classList.remove('hidden');
+  }
+  if (force) { $('dashRefresh').disabled = false; $('dashRefresh').textContent = 'Aggiorna da Notion'; }
+  dashLoading = false;
 }
-
-function barRow(name, pct, big){
-  const w = el('div', big ? 'dash-bar' : '');
-  if (!big) { w.style.display = 'flex'; w.style.flexDirection = 'column'; w.style.gap = '4px'; }
-  const top = el('div', 'row-top');
-  top.appendChild(el('span', '', name));
-  const v = el('span', '', pct + '%'); v.style.color = colorFor(pct); top.appendChild(v);
-  const bar = el('div', 'bar'); const i = el('i'); i.style.width = Math.max(pct, 2) + '%'; i.style.background = colorFor(pct); bar.appendChild(i);
-  w.appendChild(top); w.appendChild(bar);
-  return w;
-}
+$('dashRefresh').addEventListener('click', () => loadDashboard(true));
 
 function renderDashboard(){
-  if (!dashData) return;
-  const d = dashData;
-  $('dashPeriod').textContent = d.periodo;
-  const rows = $('dashRows'); rows.innerHTML = '';
-  d.aree.forEach(a => rows.appendChild(barRow(a.nome, a.pct)));
-  $('dashNote').textContent = d.nota || '';
+  const d = dashData; if (!d) return;
+  const cur = d.mesi.find(m => m.corrente);
 
-  const avg = Math.round(d.aree.reduce((s,a) => s + a.pct, 0) / d.aree.length);
-  $('ovDashAvg').textContent = avg + '%';
-  $('ovDashSub').textContent = d.periodo + ' · ' + d.fonte;
-  const all = $('ovDashBars'); all.innerHTML = '';
-  d.aree.forEach(a => all.appendChild(barRow(a.nome, a.pct, true)));
-  const sorted = d.aree.slice().sort((a,b) => b.pct - a.pct);
-  const best = $('ovDashBest'); best.innerHTML = '';
-  sorted.filter(a => a.pct > 0).slice(0,3).forEach(a => best.appendChild(barRow(a.nome, a.pct, true)));
-  const worst = $('ovDashWorst'); worst.innerHTML = '';
-  sorted.slice().reverse().filter(a => a.pct < 30).forEach(a => worst.appendChild(barRow(a.nome, a.pct, true)));
-  $('ovDashNote').textContent = d.nota || '';
+  // --- riquadro a sinistra ---
+  $('dashPeriod').textContent = d.periodo + ' · giorno ' + d.oggi.giorno + '/' + d.oggi.giorniMese;
+  $('dashMonthBar').style.width = d.oggi.pctMese + '%';
+  const rows = $('dashRows'); rows.innerHTML = '';
+  if (cur) {
+    const tot = pctOf({ c: cur.totC, t: cur.totT });
+    $('dashMonthTxt').textContent = 'Completate ' + cur.totC + ' su ' + cur.totT + ' (' + tot + '%) · mese al ' + d.oggi.pctMese + '%';
+    d.aree.forEach(a => {
+      const s = cur.aree[a.nome] || { c: 0, t: 0 };
+      if (!s.t) return;
+      const p = pctOf(s);
+      const w = el('div'); w.style.display = 'flex'; w.style.flexDirection = 'column'; w.style.gap = '4px';
+      const top = el('div', 'row-top');
+      const nm = el('span'); const dot = el('span', 'adot'); dot.style.cssText = 'display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:8px;background:' + a.colore;
+      nm.append(dot, document.createTextNode(a.nome));
+      const v = el('span', '', s.c + '/' + s.t + ' · ' + p + '%'); v.style.color = p >= d.oggi.pctMese * 0.6 ? 'var(--ok)' : p > 0 ? 'var(--text)' : 'var(--todo)';
+      top.append(nm, v);
+      const bar = el('div', 'bar'); const i = el('i'); i.style.width = Math.max(p, 2) + '%'; i.style.background = a.colore; bar.appendChild(i);
+      w.append(top, bar); rows.appendChild(w);
+    });
+  } else {
+    $('dashMonthTxt').textContent = 'La pagina del mese corrente non esiste ancora su Notion.';
+  }
+
+  // --- vista completa ---
+  const today = new Date(d.oggi.iso + 'T12:00:00');
+  $('ovDashDate').textContent = today.toLocaleDateString('it-IT', { day: 'numeric', month: 'long', year: 'numeric' });
+  $('ovDashDay').textContent = 'giorno ' + d.oggi.giorno + ' di ' + d.oggi.giorniMese + (cur ? ' di ' + cur.label : '') + ' (' + d.oggi.pctMese + '% del mese)';
+  $('ovDashNota').textContent = d.nota || '—';
+
+  // pillole mesi
+  const strip = $('ovMonthStrip'); strip.innerHTML = '';
+  d.mesi.forEach(m => {
+    const p = el('div', 'mpill' + (m.corrente ? ' cur' : ''));
+    p.appendChild(el('span', '', m.label + (m.corrente ? ' · in corso' : '')));
+    p.appendChild(el('b', '', String(m.totC)));
+    p.appendChild(el('small', '', m.pctValido ? 'su ' + m.totT + ' · ' + pctOf({ c: m.totC, t: m.totT }) + '%' : 'task completate'));
+    strip.appendChild(p);
+  });
+
+  // tabella mese in corso
+  const tbl = $('ovCurTable'); tbl.innerHTML = '';
+  if (cur) {
+    $('ovCurTitle').textContent = cur.label + ' in corso — dettaglio per area';
+    $('ovCurSub').textContent = 'Completate su totale task del mese. La linea bianca è il passo del mese (' + d.oggi.pctMese + '%): sopra sei in anticipo, sotto sei indietro.';
+    const hr = el('tr'); ['Area', 'Completate', 'Totale', '%', 'Avanzamento'].forEach((h, i) => { const th = el('th', i > 0 && i < 4 ? 'num' : '', h); hr.appendChild(th); }); tbl.appendChild(hr);
+    d.aree.forEach(a => {
+      const s = cur.aree[a.nome] || { c: 0, t: 0 };
+      if (!s.t) return;
+      const p = pctOf(s);
+      const tr = el('tr');
+      const td0 = el('td'); const dot = el('span', 'adot'); dot.style.background = a.colore; td0.append(dot, document.createTextNode(a.nome));
+      const pb = el('div', 'pbar'); const fi = el('i'); fi.style.width = p + '%'; fi.style.background = a.colore; const pace = el('span', 'pace'); pace.style.left = d.oggi.pctMese + '%'; pb.append(fi, pace);
+      const td4 = el('td'); td4.appendChild(pb);
+      tr.append(td0, el('td', 'num', String(s.c)), el('td', 'num', String(s.t)), el('td', 'num', p + '%'), td4);
+      tbl.appendChild(tr);
+    });
+    const tr = el('tr'); tr.style.fontWeight = '600';
+    tr.append(el('td', '', 'Totale'), el('td', 'num', String(cur.totC)), el('td', 'num', String(cur.totT)), el('td', 'num', pctOf({ c: cur.totC, t: cur.totT }) + '%'), el('td'));
+    tbl.appendChild(tr);
+  } else {
+    $('ovCurTitle').textContent = 'Mese in corso';
+    $('ovCurSub').textContent = 'La pagina del mese corrente non esiste ancora su Notion: creala per vedere l\'avanzamento.';
+  }
+
+  // note ferme
+  const st = $('ovStaleTable'); st.innerHTML = '';
+  const sh = el('tr'); ['Nota', 'Area', 'Ferma da'].forEach((h, i) => sh.appendChild(el('th', i === 2 ? 'num' : '', h))); st.appendChild(sh);
+  const col = {}; d.aree.forEach(a => col[a.nome] = a.colore);
+  (d.stale || []).forEach(s => {
+    const tr = el('tr');
+    const td0 = el('td'); const a = el('a', '', s.testo); a.href = s.url || '#'; a.target = '_blank'; a.rel = 'noopener'; td0.appendChild(a);
+    const td1 = el('td'); const dot = el('span', 'adot'); dot.style.background = col[s.area] || '#64748B'; td1.append(dot, document.createTextNode(s.area));
+    const td2 = el('td', 'num'); td2.appendChild(el('span', 'days', s.giorni + ' giorni'));
+    tr.append(td0, td1, td2); st.appendChild(tr);
+  });
+  if (!(d.stale || []).length) { const tr = el('tr'); const td = el('td', '', 'Nessuna nota aperta con data.'); td.colSpan = 3; tr.appendChild(td); st.appendChild(tr); }
+
+  $('ovDashFoot').textContent = 'Fonte: Notion → 01_Personal work list → ' + d.mesi.map(m => m.label).join(' / ') + ' · aggiornato alle ' + new Date(d.aggiornato).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' }) + ' · "C.T. 3.0" è conteggiato in A.L. Real Estate.';
+
+  renderCharts();
+}
+
+function renderCharts(){
+  const d = dashData;
+  if (!d || !window.Chart || $('ovDash').classList.contains('hidden')) return;
+  Chart.defaults.color = '#9FB0CC';
+  Chart.defaults.font.family = 'Inter, system-ui, sans-serif';
+  const grid = { color: 'rgba(159,176,204,.12)' };
+  const valid = d.mesi.filter(m => m.pctValido);
+  const dsPct = d.aree.map(a => ({
+    label: a.nome, backgroundColor: a.colore, borderRadius: 4, maxBarThickness: 26,
+    data: valid.map(m => pctOf(m.aree[a.nome]))
+  }));
+  if (chartPct) chartPct.destroy();
+  chartPct = new Chart($('chartPct'), {
+    type: 'bar',
+    data: { labels: valid.map(m => m.label + (m.corrente ? ' (in corso)' : '')), datasets: dsPct },
+    options: { responsive: true, maintainAspectRatio: false,
+      scales: { y: { min: 0, max: 100, ticks: { callback: v => v + '%' }, grid }, x: { grid: { display: false } } },
+      plugins: { legend: { position: 'bottom', labels: { boxWidth: 12, usePointStyle: true } },
+        tooltip: { callbacks: { label: c => { const s = valid[c.dataIndex].aree[c.dataset.label] || { c: 0, t: 0 }; return c.dataset.label + ': ' + (c.raw == null ? 'nessuna task' : c.raw + '% (' + s.c + '/' + s.t + ')'); } } } } }
+  });
+  const dsVol = d.aree.map(a => ({ label: a.nome, backgroundColor: a.colore, borderRadius: 3, maxBarThickness: 40, data: d.mesi.map(m => (m.aree[a.nome] || { c: 0 }).c) }));
+  if (chartVol) chartVol.destroy();
+  chartVol = new Chart($('chartVol'), {
+    type: 'bar',
+    data: { labels: d.mesi.map(m => m.label), datasets: dsVol },
+    options: { responsive: true, maintainAspectRatio: false,
+      scales: { x: { stacked: true, grid: { display: false } }, y: { stacked: true, beginAtZero: true, grid } },
+      plugins: { legend: { position: 'bottom', labels: { boxWidth: 12, usePointStyle: true } } } }
+  });
+}
+
+// =====================================================================
+//  EMAIL E NOTE (riquadri)
+// =====================================================================
+async function loadMail(){
+  const box = $('mailBox');
+  try {
+    const m = await api('/mail/inbox');
+    box.innerHTML = '';
+    if (!m.configured) { box.appendChild(el('div', 'soon', 'Gmail non ancora collegato: segui i passi per lo script Google e aggiungi GMAIL_SCRIPT_URL e GMAIL_SCRIPT_KEY nel Worker.')); $('mailCount').textContent = 'da collegare'; return; }
+    $('mailCount').textContent = m.unread + ' non lette';
+    (m.latest || []).slice(0, 4).forEach(x => {
+      const it = el('div', 'mitem' + (x.unread ? ' unread' : ''));
+      it.appendChild(el('b', '', x.subject));
+      it.appendChild(el('span', '', (x.from || '').replace(/<.*>/, '').trim() + ' · ' + new Date(x.date).toLocaleDateString('it-IT', { day: 'numeric', month: 'short' })));
+      box.appendChild(it);
+    });
+    if (!(m.latest || []).length) box.appendChild(el('div', 'soon', 'Nessuna email in arrivo.'));
+  } catch(e) {
+    box.innerHTML = ''; box.appendChild(el('div', 'soon', 'Email non disponibili: ' + e.message));
+  }
+}
+
+async function loadNotes(){
+  const box = $('notesBox');
+  try {
+    const n = await api('/notes');
+    box.innerHTML = '';
+    if (!n.ok) { box.appendChild(el('div', 'soon', n.error || 'Note non disponibili')); return; }
+    $('monthLbl').textContent = n.mese.toUpperCase();
+    const head = el('div', 'row-top'); head.style.fontSize = '13px';
+    head.append(el('span', '', 'Task aperte questo mese'), el('b', '', n.aperte + ' / ' + n.totali));
+    box.appendChild(head);
+    if (n.ferme && n.ferme.length) {
+      const lab = el('p', 'muted', 'FERME DA PIÙ TEMPO'); lab.style.marginTop = '8px'; box.appendChild(lab);
+      n.ferme.forEach(s => {
+        const it = el('div', 'mitem');
+        it.appendChild(el('b', '', s.testo));
+        it.appendChild(el('span', '', s.area + ' · ferma da ' + s.giorni + ' giorni'));
+        box.appendChild(it);
+      });
+    }
+  } catch(e) {
+    box.innerHTML = ''; box.appendChild(el('div', 'soon', 'Note non disponibili: ' + e.message));
+  }
 }
 
 // =====================================================================
@@ -511,7 +743,7 @@ async function toggleTask(id, fatto, btn){
 function openView(v){
   closeViews();
   if (v === 'flusso') { loadFlow(); $('ovFlow').classList.remove('hidden'); }
-  if (v === 'dashboard') { loadDashboard(); $('ovDash').classList.remove('hidden'); }
+  if (v === 'dashboard') { $('ovDash').classList.remove('hidden'); if (dashData) renderDashboard(); loadDashboard(); }
   document.body.style.overflow = 'hidden';
 }
 function closeViews(){
@@ -566,6 +798,8 @@ async function sendText(text){
     history.push({ role: 'assistant', content: r.reply }); saveHistory();
     (r.actions || []).forEach(a => { if (a.type === 'view') openView(a.view); });
     if (r.flowChanged) loadFlow();
+    if (r.notesChanged) { loadDashboard(true); loadNotes(); }
+    if (r.mailChanged) loadMail();
     setConn(true);
     speak(r.reply);
   } catch (e) {
@@ -587,10 +821,8 @@ document.querySelectorAll('[data-quick]').forEach(b => b.addEventListener('click
   if (v === 'dashboard') {
     addMsg('user', 'Ehi Claude, fammi vedere la dashboard aggiornata');
     openView('dashboard');
-    if (dashData) {
-      const s = dashData.aree.slice().sort((a,b) => b.pct - a.pct);
-      addMsg('bot', 'Ecco la dashboard (' + dashData.periodo + '). Meglio: ' + s[0].nome + ' ' + s[0].pct + '%. Da migliorare: ' + s.filter(a => a.pct < 30).map(a => a.nome + ' ' + a.pct + '%').join(', ') + '.');
-    }
+    if (dashData && dashData.nota) addMsg('bot', 'Ecco la dashboard di efficienza (' + dashData.periodo + '). ' + dashData.nota);
+    else addMsg('bot', 'Ecco la dashboard di efficienza: la sto aggiornando da Notion.');
   } else {
     addMsg('user', 'Ehi Claude, fammi vedere il sistema di flusso');
     openView('flusso');
