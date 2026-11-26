@@ -188,6 +188,21 @@ header{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-betw
 .mitem.unread b::before{content:'';display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--accent);margin-right:6px;vertical-align:middle}
 @media (max-width:820px){ .dash-2col{grid-template-columns:1fr} .dtoday{align-items:flex-start;text-align:left;margin-left:0} .ov-h{flex-wrap:wrap} }
 
+/* Chat: testo formattato */
+.msg.bot.md{white-space:normal}
+.msg .li{display:flex;gap:8px;margin:2px 0}
+.msg .li::before{content:'•';color:var(--accent)}
+.msg strong{color:#F0FDFA}
+/* Agenda */
+.ev{display:flex;gap:10px;padding:8px 0;border-bottom:1px solid var(--line);font-size:13px}
+.ev:last-child{border-bottom:none}
+.ev time{flex:0 0 52px;color:var(--accent);font-family:'Space Grotesk';font-size:13px}
+.ev div{min-width:0}
+.ev b{display:block;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ev span{color:var(--muted);font-size:12px}
+.agh{font-size:11px;letter-spacing:1.5px;color:var(--muted);margin:6px 0 0}
+.hbtn.live{border-color:var(--accent);color:var(--accent)}
+
 /* Impostazioni voce */
 .vlist{display:flex;flex-direction:column;gap:8px;max-height:46vh;overflow-y:auto}
 .vitem{display:flex;align-items:center;gap:12px;padding:12px 14px;border-radius:12px;border:1px solid var(--line);background:#0B1220;cursor:pointer}
@@ -244,6 +259,7 @@ header{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-betw
       <span class="pill" id="stConn">● Server</span>
       <button class="hbtn" id="voiceBtn" type="button" aria-pressed="true">Voce: ON</button>
       <button class="hbtn" id="voiceSetBtn" type="button">Scegli voce</button>
+      <button class="hbtn" id="wakeBtn" type="button" aria-pressed="false" title="Con l'app aperta, ascolta la frase «Ehi Claude»">«Ehi Claude»: OFF</button>
       <button class="hbtn" id="clearBtn" type="button">Nuova chat</button>
       <button class="hbtn" id="logoutBtn" type="button">Esci</button>
     </div>
@@ -262,6 +278,10 @@ header{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-betw
       <section class="card" aria-labelledby="hMail">
         <div class="card-h"><h2 id="hMail">EMAIL</h2><span id="mailCount">a.l.realestateinvest</span></div>
         <div id="mailBox"><div class="soon">Caricamento…</div></div>
+      </section>
+      <section class="card" aria-labelledby="hCal">
+        <div class="card-h"><h2 id="hCal">AGENDA</h2><span id="calCount">oggi e domani</span></div>
+        <div id="calBox"><div class="soon">Caricamento…</div></div>
       </section>
     </div>
 
@@ -400,7 +420,7 @@ header{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-betw
 //  CONFIGURAZIONE
 // =====================================================================
 const API = 'https://claude-assistant.a-l-realestateinvest.workers.dev';
-const LS = { token: 'j3_token', hist: 'j3_hist', voice: 'j3_voice', voiceName: 'j3_voice_name', rate: 'j3_rate' };
+const LS = { token: 'j3_token', hist: 'j3_hist', histTs: 'j3_hist_ts', voice: 'j3_voice', voiceName: 'j3_voice_name', rate: 'j3_rate', wake: 'j3_wake' };
 
 let token = lsGet(LS.token);
 let history = [];
@@ -465,10 +485,12 @@ $('logoutBtn').addEventListener('click', () => { if (confirm('Vuoi scollegare qu
 // =====================================================================
 async function start(){
   renderHistory();
+  syncHistory();
   loadDashboard();
   loadFlow();
   loadMail();
   loadNotes();
+  loadAgenda();
   try { await api('/verify'); setConn(true); } catch(e) { if (token) setConn(false); }
 }
 
@@ -675,6 +697,41 @@ async function loadNotes(){
   }
 }
 
+async function loadAgenda(){
+  const box = $('calBox');
+  try {
+    const a = await api('/calendar/agenda');
+    box.innerHTML = '';
+    if (!a.configured) { box.appendChild(el('div', 'soon', 'Calendario non collegato.')); return; }
+    if (a.error) { box.appendChild(el('div', 'soon', 'Calendario non disponibile: ' + a.error + '. Aggiorna lo script Google alla versione 2.')); $('calCount').textContent = 'da aggiornare'; return; }
+    $('calCount').textContent = (a.oggi || []).length + ' oggi · ' + (a.domani || []).length + ' domani';
+    [['OGGI', a.oggi || []], ['DOMANI', a.domani || []]].forEach(([lab, list]) => {
+      box.appendChild(el('p', 'agh', lab));
+      if (!list.length) { box.appendChild(el('div', 'muted', 'Nessun impegno')); return; }
+      list.slice(0, 5).forEach(e => {
+        const r = el('div', 'ev');
+        r.appendChild(el('time', '', e.allDay ? 'tutto il g.' : e.start.slice(11, 16)));
+        const d = el('div'); d.appendChild(el('b', '', e.title)); d.appendChild(el('span', '', (e.allDay ? '' : 'fino alle ' + e.end.slice(11, 16)) + (e.location ? ' · ' + e.location : '') + ' · ' + e.calendar));
+        r.appendChild(d); box.appendChild(r);
+      });
+    });
+  } catch(e) {
+    box.innerHTML = ''; box.appendChild(el('div', 'soon', 'Calendario non disponibile: ' + e.message));
+  }
+}
+
+// Chat condivisa tra PC e iPhone (salvata sul server)
+async function syncHistory(){
+  try {
+    const h = await api('/history');
+    const localTs = parseInt(lsGet(LS.histTs) || '0', 10) || 0;
+    if (h && h.ts > localTs) {
+      history = (h.messages || []).filter(m => typeof m.content === 'string');
+      lsSet(LS.histTs, String(h.ts)); saveHistory(); renderHistory();
+    }
+  } catch(e) {}
+}
+
 // =====================================================================
 //  FLUSSO
 // =====================================================================
@@ -759,8 +816,20 @@ document.addEventListener('keydown', e => { if (e.key === 'Escape') closeViews()
 // =====================================================================
 function saveHistory(){ history = history.slice(-30); lsSet(LS.hist, JSON.stringify(history)); }
 
+function escHtml(t){ return String(t).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
+function mdToHtml(text){
+  const inline = t => escHtml(t).replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>').replace(/(^|[^*])\*([^*\n]+)\*/g, '$1<em>$2</em>');
+  return String(text).split('\n').map(line => {
+    const l = line.trim();
+    if (/^[-*•]\s+/.test(l)) return '<div class="li"><span>' + inline(l.replace(/^[-*•]\s+/, '')) + '</span></div>';
+    if (/^#{1,6}\s+/.test(l)) return '<strong>' + inline(l.replace(/^#{1,6}\s+/, '')) + '</strong><br>';
+    if (!l) return '<br>';
+    return inline(line) + '<br>';
+  }).join('').replace(/(<br>){3,}/g, '<br><br>').replace(/<br>$/, '');
+}
 function addMsg(role, text, isErr){
-  const m = el('div', 'msg ' + (role === 'user' ? 'me' : 'bot') + (isErr ? ' err' : ''), text);
+  const m = el('div', 'msg ' + (role === 'user' ? 'me' : 'bot') + (isErr ? ' err' : ''));
+  if (role !== 'user' && !isErr && text) { m.classList.add('md'); m.innerHTML = mdToHtml(text); } else m.textContent = text;
   $('chat').appendChild(m);
   $('chat').scrollTop = $('chat').scrollHeight;
   return m;
@@ -800,6 +869,8 @@ async function sendText(text){
     if (r.flowChanged) loadFlow();
     if (r.notesChanged) { loadDashboard(true); loadNotes(); }
     if (r.mailChanged) loadMail();
+    if (r.calChanged) loadAgenda();
+    if (r.historyTs) lsSet(LS.histTs, String(r.historyTs));
     setConn(true);
     speak(r.reply);
   } catch (e) {
@@ -809,11 +880,15 @@ async function sendText(text){
     setOrb(null);
   }
   busy = false;
+  if (!speaking) setTimeout(wakeStart, 400);
 }
 
 $('chatForm').addEventListener('submit', e => { e.preventDefault(); const t = $('txt').value; $('txt').value = ''; sendText(t); });
 
-$('clearBtn').addEventListener('click', () => { history = []; saveHistory(); renderHistory(); });
+$('clearBtn').addEventListener('click', async () => {
+  history = []; saveHistory(); renderHistory();
+  try { const h = await api('/history/clear', { method: 'POST', body: {} }); lsSet(LS.histTs, String(h.ts)); } catch(e) {}
+});
 
 // Comandi rapidi: aprono subito la vista, senza attese
 document.querySelectorAll('[data-quick]').forEach(b => b.addEventListener('click', () => {
@@ -893,8 +968,11 @@ function chunks(text){
   return out;
 }
 
+let speaking = false;
 function speak(text, force){
   if ((!voiceOn && !force) || !window.speechSynthesis) { setOrb(null); return; }
+  wakeStop();
+  speaking = true;
   speechSynthesis.cancel();
   const v = pickVoice();
   const list = chunks(text);
@@ -905,7 +983,10 @@ function speak(text, force){
     u.rate = getRate();
     u.pitch = 1;
     if (i === 0) u.onstart = () => setOrb('speaking');
-    if (i === list.length - 1) { u.onend = () => setOrb(null); u.onerror = () => setOrb(null); }
+    if (i === list.length - 1) {
+      const done = () => { speaking = false; setOrb(null); setTimeout(wakeStart, 500); };
+      u.onend = done; u.onerror = done;
+    }
     speechSynthesis.speak(u);
   });
 }
@@ -975,7 +1056,8 @@ let rec = null, recActive = false;
 function startListening(){
   if (!SR) { addMsg('bot', 'Il riconoscimento vocale non è disponibile in questo browser. Usa Chrome su PC o Safari su iPhone.', true); return; }
   if (recActive) { rec.stop(); return; }
-  if (window.speechSynthesis) speechSynthesis.cancel();
+  wakeStop();
+  if (window.speechSynthesis) { speechSynthesis.cancel(); speaking = false; }
   rec = new SR();
   rec.lang = 'it-IT'; rec.interimResults = true; rec.continuous = false; rec.maxAlternatives = 1;
   let finalText = '';
@@ -992,12 +1074,71 @@ function startListening(){
     recActive = false; $('micBtn').classList.remove('rec');
     const t = (finalText || $('txt').value).trim();
     $('txt').value = '';
-    if (t) sendText(t.replace(/^(ehi|hey|ei)\s+claude[,\s]*/i, '') || t); else setOrb(null);
+    if (t) sendText(t.replace(/^(ehi|hey|ei|hei)\s+claude[,\s]*/i, '') || t); else { setOrb(null); setTimeout(wakeStart, 400); }
   };
   try { rec.start(); } catch(e) { recActive = false; setOrb(null); }
 }
 $('micBtn').addEventListener('click', startListening);
 $('orb').addEventListener('click', startListening);
+
+// =====================================================================
+//  «EHI CLAUDE» — ascolto continuo con l'app aperta
+// =====================================================================
+let wakeOn = lsGet(LS.wake) === 'on';
+let wakeRec = null, wakeActive = false, awaitingCmd = false, awaitTimer = null;
+const WAKE_RE = /\b(?:ehi|hey|ei|hei|ehy|e)\s*,?\s*claude\b[\s,.:!]*(.*)$/i;
+
+function updateWakeBtn(){
+  $('wakeBtn').textContent = '«Ehi Claude»: ' + (wakeOn ? 'ON' : 'OFF');
+  $('wakeBtn').setAttribute('aria-pressed', wakeOn ? 'true' : 'false');
+  $('wakeBtn').classList.toggle('live', wakeOn);
+}
+function wakeStop(){
+  if (wakeRec) { try { wakeRec.onend = null; wakeRec.abort(); } catch(e) {} }
+  wakeRec = null; wakeActive = false;
+}
+function wakeStart(){
+  if (!wakeOn || !SR || !token || recActive || busy || speaking || wakeActive) return;
+  if (document.hidden) return;
+  const r = new SR();
+  r.lang = 'it-IT'; r.continuous = true; r.interimResults = false; r.maxAlternatives = 1;
+  r.onresult = (ev) => {
+    for (let i = ev.resultIndex; i < ev.results.length; i++) {
+      if (ev.results[i].isFinal) handleWake(ev.results[i][0].transcript || '');
+    }
+  };
+  r.onerror = (ev) => {
+    if (ev.error === 'not-allowed' || ev.error === 'service-not-allowed') {
+      wakeOn = false; lsSet(LS.wake, 'off'); updateWakeBtn();
+      addMsg('bot', 'Per usare «Ehi Claude» devi consentire il microfono al browser.', true);
+    }
+  };
+  r.onend = () => { wakeActive = false; wakeRec = null; if (wakeOn) setTimeout(wakeStart, 300); };
+  try { r.start(); wakeRec = r; wakeActive = true; } catch(e) { wakeActive = false; }
+}
+function handleWake(t){
+  t = t.trim();
+  if (!t) return;
+  if (awaitingCmd) {
+    awaitingCmd = false; clearTimeout(awaitTimer);
+    wakeStop(); sendText(t); return;
+  }
+  const m = t.match(WAKE_RE);
+  if (!m) return;
+  const cmd = (m[1] || '').trim();
+  if (cmd.length > 2) { wakeStop(); sendText(cmd); return; }
+  awaitingCmd = true; setOrb('listening');
+  clearTimeout(awaitTimer);
+  awaitTimer = setTimeout(() => { if (awaitingCmd) { awaitingCmd = false; setOrb(null); } }, 8000);
+}
+$('wakeBtn').addEventListener('click', () => {
+  if (!SR) { addMsg('bot', 'Questo browser non supporta l\'ascolto vocale. Usa Chrome o Edge su PC, Safari su iPhone.', true); return; }
+  wakeOn = !wakeOn; lsSet(LS.wake, wakeOn ? 'on' : 'off'); updateWakeBtn();
+  if (wakeOn) { wakeStart(); addMsg('bot', 'Ascolto attivo: di\' «Ehi Claude» seguito dalla richiesta, anche in un\'unica frase.'); }
+  else wakeStop();
+});
+document.addEventListener('visibilitychange', () => { if (document.hidden) wakeStop(); else setTimeout(wakeStart, 500); });
+updateWakeBtn();
 
 // =====================================================================
 //  SFONDO A PARTICELLE
@@ -1045,7 +1186,7 @@ $('orb').addEventListener('click', startListening);
 // =====================================================================
 //  INIZIO
 // =====================================================================
-if (token) start(); else { renderHistory(); showPin(); }
+if (token) { start(); setTimeout(wakeStart, 1200); } else { renderHistory(); showPin(); }
 </script>
 </body>
 </html>
